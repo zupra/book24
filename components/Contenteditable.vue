@@ -8,6 +8,7 @@
 </template>
 
 <script>
+// https://github.com/Cobertos/vue-input-contenteditable
 export default {
   name: 'InputContenteditable',
   props: {
@@ -78,6 +79,7 @@ export default {
 <style scoped="true">
 [contenteditable] {
   cursor: text;
+  white-space: nowrap;
 }
 
 [contenteditable]:empty:before {

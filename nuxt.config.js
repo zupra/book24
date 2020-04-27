@@ -41,8 +41,10 @@ export default {
    */
   modules: [
     // Doc: https://axios.nuxtjs.org/usage
-    '@nuxtjs/axios'
+    '@nuxtjs/axios',
+    '@nuxtjs/toast'
   ],
+
   /*
    ** Axios module configuration
    ** See https://axios.nuxtjs.org/options

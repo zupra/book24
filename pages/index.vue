@@ -1,8 +1,9 @@
 <template lang="pug">
 #page
-  pre {{ $data }}
 
-  form
+  //- pre {{ $data }}
+
+  .Form
 
     ValidationProvider(
       rules="email" 
@@ -10,62 +11,79 @@
     )
       .field
         .field__title Электронная почта
+        
         input(
           name="email"
           v-model="EMAIL"
-          :class="{ 'is-invalid': errors.length }"
+          :class="[{ 'is-invalid': errors.length }, { 'is-valid': EMAIL && !errors.length }]"
+          @change="!errors.length && checkEmail()"
+          v-on:dblclick="!errors.length && checkEmail()"
         )
         .errors {{ errors[0] }}
-    .field
-      .field__title ФИО
 
-      .INPUT
-        //- ValidationProvider(
-        //-   rules="required|alpha" 
-        //-   v-slot="{ errors }"
-        //- )
-        //-   .errors {{ errors[0] }}
-        Contenteditable(
-          v-model="FIO.LAST_NAME"
-          placeholder="Фамилия"
-        )
-        | &nbsp;
-        Contenteditable(
-          v-model="FIO.NAME"
-          placeholder="Имя"
-        )
-        | &nbsp;
-        Contenteditable(
-          v-model="FIO.SECOND_NAME"
-          placeholder="Отчество"
-        )
-      .errors(
-        v-if="!(FIO.LAST_NAME && FIO.NAME)"
-      ) Нужно указать фамилию и имя
 
-    
-    ValidationProvider(
-      rules="digits:11" 
-      v-slot="{ errors }"
+    div(
+      v-show="emailAvailable"
     )
       .field
-        .field__title Номер телефона
-        input(
-          name="phone"
-          v-model="PERSONAL_PHONE"
-          :class="{ 'is-invalid': errors.length }"
+        .field__title ФИО
+
+        .INPUT(
+          :class="{ 'is-valid': FIO.LAST_NAME && FIO.NAME }"
         )
-        .errors {{ errors[0] }}
+          ValidationProvider(
+            rules="required|alpha" 
+            v-slot="{ errors }"
+          )
+            Contenteditable(
+              name="last_name"
+              v-model="FIO.LAST_NAME"
+              placeholder="Фамилия"
+            )
+          | &nbsp;
+          Contenteditable(
+            name="name"
+            v-model="FIO.NAME"
+            placeholder="Имя"
+          )
+          | &nbsp;
+          Contenteditable(
+            name="second_name"
+            v-model="FIO.SECOND_NAME"
+            placeholder="Отчество"
+          )
+        .errors(
+          v-if="!(FIO.LAST_NAME && FIO.NAME)"
+        ) Нужно указать фамилию и имя
+
+      .field
+        .field__title Номер телефона
+        TheMask(
+          name="phone"
+          v-model="PERSONAL_PHONE",
+          mask="# (###) ### ## ##",
+          placeholder="# (###) ### ## ##"
+          :class="{ 'is-valid': PERSONAL_PHONE.length === 11 }"
+        )
+      
+      .btn(
+        :disabled="!(FIO.LAST_NAME && FIO.NAME && PERSONAL_PHONE)"
+        @click="postUser()"
+      ) Зарегистрироваться
+
+  #footer Сначала показываем одно поле email, пользователь вводит Email, мы проверяем его. Если Email доступен для регистрации, то пользователю показываются оставшиеся поля... 
 </template>
 
 <script>
 import { ValidationProvider } from 'vee-validate'
+import { TheMask } from 'vue-the-mask'
 import Contenteditable from '~/components/Contenteditable.vue'
 
 export default {
   components: {
     ValidationProvider,
-    Contenteditable
+    Contenteditable,
+    TheMask
   },
   data() {
     return {
@@ -75,86 +93,119 @@ export default {
         SECOND_NAME: ''
       },
       EMAIL: '',
-      PERSONAL_PHONE: ''
+      PERSONAL_PHONE: '',
+      emailAvailable: false
+    }
+  },
+
+  watch: {
+    EMAIL() {
+      this.emailAvailable = false
+      this.$toast.clear(this.$toast)
+      // console.dir(this.$toast.clear(this.$toast))
     }
   },
 
   methods: {
+    async postUser() {
+      try {
+        const { DATA } = await this.$axios.$post('/user/', {
+          ...this.FIO,
+          EMAIL: this.EMAIL,
+          PERSONAL_PHONE: this.PERSONAL_PHONE,
+          AUTHORIZE: 'Y'
+        })
+        this.$toast.success(
+          `Зарегистрирован новый пользователь с ID = ${DATA.USER_ID}`,
+          { duration: 3000 }
+        )
+      } catch ({ response }) {
+        this.$toast.error('Ошибка', { duration: 3000 })
+      }
+    },
+
+    async checkEmail() {
+      try {
+        await this.$axios.$post('/user/check-email-availability/', {
+          EMAIL: this.EMAIL
+        })
+        this.$toast.success(`EMAIL ${this.EMAIL} доступен для регистрации`, {
+          duration: 3000
+        })
+
+        this.emailAvailable = true
+      } catch ({ response }) {
+        this.$toast.error(response.data.errors[0].message)
+      }
+    }
+
+    /*
     async getUserSession() {
       try {
-        const { data } = await this.$axios.$get('/user-session/', {
+        await this.$axios.$get('/user-session/', {
           params: {
             SESSID: '330d207892855dbd5abd5147ea562094',
             TYPE_PLATFORM: 'desktop'
           }
         })
-        console.log(data)
+        this.$toast.success('Успешно')
       } catch ({ response }) {
-        console.log(response.data)
+        this.$toast.error('Ошибка')
       }
     },
-
     async postUserSession() {
       try {
-        const { data } = await this.$axios.$post('/user-session/', {
-          // EMAIL: latyshev1234@book24.ru
-          // NAME: Василий
-          // LAST_NAME: Латышев
-          // SECOND_NAME: Павлович
-          // PERSONAL_PHONE: 89168205898
-          // AUTHORIZE: Y
-        })
-        console.log(data)
-      } catch ({ response }) {
-        console.log(response.data)
-      }
-    },
-
-    async postUser() {
-      try {
-        const { data } = await this.$axios.$post('/user/', {
+        await this.$axios.$post('/user-session/', {
           // LOGIN - логин пользователя
           // PASSWORD - пароль
           // REMEMBER:string (N, Y) - запоминать ли авторизацию.
         })
-        console.log(data)
+        this.$toast.success('Успешно')
       } catch ({ response }) {
-        console.log(response.data)
-      }
-    },
-
-    async checkEmailAvailability() {
-      try {
-        const { data } = await this.$axios.$post(
-          '/user/check-email-availability/',
-          {
-            EMAIL: 'latyshev1234@book24.ru123'
-          }
-        )
-        console.log(data)
-      } catch ({ response }) {
-        console.log(response.data)
+        this.$toast.error('Ошибка')
       }
     },
     async passwordRecovery() {
       try {
-        const { data } = await this.$axios.$post(' /user/password-recovery/', {
+        await this.$axios.$post(' /user/password-recovery/', {
           // SESSID: 44673cb5c786ee709b9f3e76923bc6e9
           // TYPE_PLATFORM: desktop
           // LOGIN: vaslatyshev@gmail.com
         })
-        console.log(data)
+        this.$toast.success('Успешно')
       } catch ({ response }) {
-        console.log(response.data)
+        this.$toast.error('Ошибка')
       }
     }
+    */
   }
 }
 </script>
 
 <style lang="stylus">
-$focus = violet;
-$text = #8aa4bb;
+#footer {
+  position: fixed;
+  bottom: 0;
+  width: 100%;
+  background: #222;
+  color: #FFF;
+  padding: 1em;
+  font-size: 0.8rem;
+}
+
+#page {
+  height: 100vh;
+  user-select: none;
+  display: flex;
+}
+
+.Form {
+  width: 300px;
+  margin: auto;
+}
+
+$clr_1 = #9555af;
+$clr_2 = #8aa4bb;
 
 [contenteditable=true] {
   outline: 0;
@@ -170,12 +221,12 @@ input, .INPUT {
   appearance: none;
   // 
   border-radius: 3px;
-  border: 1px solid $text;
-  padding: 0.5em;
+  border: 1px solid $clr_2;
+  padding: 0.6em 1em;
   color: $header;
 
   &:focus {
-    border-color: $focus;
+    border-color: $clr_1;
   }
 }
 
@@ -183,22 +234,79 @@ input, .INPUT {
   border-color: red !important;
 }
 
+.is-valid {
+  border-color: green !important;
+}
+
 .INPUT {
   color: #000;
   display: flex;
-}
-
-form {
-  width: 300px;
-  margin: auto;
+  overflow: hidden;
 }
 
 .field {
-  margin: 1em;
+  margin: 1em 0;
   margin-bottom: 2em;
 
   &__title {
     font-weight: bold;
   }
+}
+
+.errors {
+  font-size: 0.8rem;
+  color: red;
+}
+
+// BUTTON
+$reset() {
+  /* сброс стилей */
+  border: none;
+  font: inherit;
+  color: inherit;
+  background-color: transparent;
+  cursor: pointer;
+  /* небольшие вертикальные отступы */
+  /* сброс браузерных стилей для фокуса */
+  outline: none;
+  user-select: none;
+}
+
+/* сброс браузерных стилей для фокуса */
+.btn::-moz-focus-inner {
+  border: none;
+}
+
+.btn {
+  $reset();
+  /* переопределение стилей для ссылок */
+  text-align: center;
+  text-decoration: none;
+  /* невидимая рамка */
+  border: solid 1px transparent;
+  border-radius: 4px;
+  /* для установки размеров используем паддинги */
+  padding: 0.6em 1em;
+  /* контрастные цвета */
+  color: #ffffff;
+  background-color: $clr_1;
+
+  &:active {
+    transform: translateY(1px);
+    filter: saturate(150%);
+  }
+
+  // .btn:focus
+  &:hover {
+    color: $clr_1;
+    border-color: currentColor;
+    background-color: white;
+    // background-color #2b2b2b
+  }
+}
+
+[disabled] {
+  opacity: 0.5;
+  pointer-events: none;
 }
 </style>
